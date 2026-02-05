@@ -1155,10 +1155,41 @@
       return `Hi, I’m RSVP’ing for Connie & Tebogo’s baby shower on ${DATE_TIME}.\nName: ${name}${g ? `\nGuests: ${g}` : ""}\nDress Code: All White\nLocation: ${VENUE}`;
     }
 
+    // Smooth + fast scrolling (fixed duration, easing). Respects reduced motion.
+    function easeInOutCubic(t){
+      return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2;
+    }
+    function getYForElement(el){
+      // Account for the skip-link padding (and any future fixed headers)
+      const top = el.getBoundingClientRect().top + window.pageYOffset;
+      return Math.max(0, top - 18);
+    }
+    function smoothScrollToY(targetY, durationMs){
+      if(prefersReducedMotion()){
+        window.scrollTo(0, targetY);
+        return;
+      }
+      const startY = window.pageYOffset;
+      const delta = targetY - startY;
+      const startT = performance.now();
+
+      // Keep it snappy on mobile; longer distances can take slightly longer.
+      const dist = Math.abs(delta);
+      const duration = Math.max(220, Math.min(520, durationMs || (260 + dist * 0.12)));
+
+      function step(now){
+        const t = Math.min(1, (now - startT) / duration);
+        const eased = easeInOutCubic(t);
+        window.scrollTo(0, startY + delta * eased);
+        if(t < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }
+
     function scrollToSel(sel){
       const el = document.querySelector(sel);
       if(!el) return;
-      el.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" });
+      smoothScrollToY(getYForElement(el));
     }
 
     // Navigation chips
