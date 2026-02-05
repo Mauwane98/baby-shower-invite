@@ -18,7 +18,12 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <!-- Load fonts without blocking first paint -->
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" media="print" onload="this.media='all'" />
+  <noscript>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" />
+  </noscript>
 
   <style>
     :root{
@@ -72,12 +77,19 @@
 
     *{box-sizing:border-box}
     html,body{height:100%}
+    html{ text-size-adjust: 100%; scroll-padding-top: 18px; }
+    img, svg{ max-width:100%; height:auto; }
     body{
       margin:0;
       min-height:100vh;
       display:grid;
       place-items:center;
-      padding:32px 20px;
+      /* Mobile-first spacing + safe-area support */
+      padding: clamp(18px, 4vw, 32px) clamp(14px, 4vw, 20px);
+      padding-top: calc(clamp(18px, 4vw, 32px) + env(safe-area-inset-top));
+      padding-bottom: calc(clamp(18px, 4vw, 32px) + env(safe-area-inset-bottom));
+      padding-left: calc(clamp(14px, 4vw, 20px) + env(safe-area-inset-left));
+      padding-right: calc(clamp(14px, 4vw, 20px) + env(safe-area-inset-right));
       color:var(--ink);
       overflow-x:hidden;
       font-family: var(--serif);
@@ -220,6 +232,7 @@
       color: rgba(17,17,17,.76);
       border-radius: 999px;
       padding: 10px 12px;
+      min-height: 44px;
       font: 800 12px/1 var(--sans);
       letter-spacing:.10em;
       text-transform:uppercase;
@@ -249,7 +262,7 @@
     }
     h1{
       margin:16px 0 8px;
-      font-size: 44px;
+      font-size: clamp(30px, 6vw, 44px);
       line-height:1.02;
       letter-spacing:.6px;
       color: var(--ink);
@@ -258,7 +271,7 @@
 
     .headline{
       margin:0;
-      font: 800 16px/1.6 var(--sans);
+      font: 800 clamp(14px, 2.6vw, 16px)/1.6 var(--sans);
       color: rgba(17,17,17,.72);
       max-width: 640px;
     }
@@ -271,11 +284,11 @@
     .sub{
       margin:0 auto;
       max-width: 640px;
-      font: 520 14px/1.85 var(--sans);
+      font: 520 clamp(13px, 2.4vw, 14px)/1.85 var(--sans);
       color: var(--muted);
     }
 
-    main{padding: 14px 20px 26px; position:relative;}
+    main{padding: clamp(14px, 3.4vw, 18px) clamp(16px, 3.8vw, 20px) clamp(20px, 4vw, 26px); position:relative;}
 
     .section{
       margin-top: 14px;
@@ -287,6 +300,10 @@
         radial-gradient(900px 260px at 86% 0%, rgba(231,168,110,.08), transparent 60%),
         linear-gradient(180deg, rgba(255,255,255,.86), rgba(255,255,255,.74));
       box-shadow: var(--shadow2);
+
+      /* Improves initial render on longer pages in Chromium-based browsers */
+      content-visibility: auto;
+      contain-intrinsic-size: 420px;
     }
 
     .sectionTitle{
@@ -319,7 +336,7 @@
     .names{
       text-align:center;
       margin:0 0 16px;
-      font-size: 36px;
+      font-size: clamp(24px, 5.2vw, 36px);
       line-height:1.12;
       color: var(--ink);
       letter-spacing:.2px;
@@ -349,7 +366,7 @@
       font-family: var(--sans);
       box-shadow: 0 14px 36px rgba(0,0,0,.06);
     }
-    .cdNum{ font: 900 22px/1 var(--sans); letter-spacing:.02em; }
+    .cdNum{ font: 900 clamp(18px, 4.6vw, 22px)/1 var(--sans); letter-spacing:.02em; }
     .cdLbl{ margin-top: 8px; font: 900 11px/1 var(--sans); letter-spacing:.24em; text-transform:uppercase; opacity:.62; }
 
     .toolbar{
@@ -474,6 +491,7 @@
       text-decoration:none;
       text-align:center;
       padding:14px 14px;
+      min-height: 44px;
       border-radius: 24px;
       font: 850 14px/1 var(--sans);
       border:1px solid var(--stroke2);
@@ -763,14 +781,28 @@
     .modal__btn:active{ transform: translateY(0); }
 
     @media (max-width:560px){
-      h1{font-size:36px}
-      .names{font-size:28px}
       .grid{grid-template-columns:1fr}
       .actions{grid-template-columns:1fr}
       .toolbar{grid-template-columns:1fr}
       .countdown{ grid-template-columns: repeat(2, 1fr); }
       main{padding:16px}
-      header{padding:30px 18px 12px}
+      header{padding:26px 16px 12px}
+    }
+
+    /* Ultra-small phones */
+    @media (max-width:380px){
+      .pill{ letter-spacing: .16em; padding:10px 12px; }
+      .cd{ padding: 12px 10px; }
+      .section{ padding: 16px 14px; border-radius: 24px; }
+    }
+
+    /* Reduce expensive effects on mobile/touch devices for smoother scrolling */
+    @media (hover:none), (pointer:coarse){
+      .ambient{ animation: none; opacity: .55; }
+      .grain{ animation: none; opacity: .04; }
+      .orb{ animation: none; opacity: .22; }
+      .btn.rsvp{ animation: none; }
+      .card{ backdrop-filter: none; }
     }
 
     /* Confetti overlay */
@@ -1199,6 +1231,10 @@
       particles:[],
       t0:0,
     };
+
+    // Lazy init canvas work (helps initial load on mobile)
+    let fxReady = false;
+    let fxCtx = null;
     function resizeFx(){
       if(!fx) return;
       const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -1206,15 +1242,22 @@
       fx.height = Math.floor(window.innerHeight * dpr);
       fx.style.width = "100%";
       fx.style.height = "100%";
-      const ctx = fx.getContext("2d");
-      ctx.setTransform(dpr,0,0,dpr,0,0);
+      fxCtx = fx.getContext("2d");
+      fxCtx.setTransform(dpr,0,0,dpr,0,0);
     }
-    window.addEventListener("resize", resizeFx);
-    resizeFx();
+
+    function ensureFxReady(){
+      if(fxReady || !fx) return;
+      fxReady = true;
+      window.addEventListener("resize", resizeFx, { passive:true });
+      resizeFx();
+    }
 
     function burstConfetti(){
       if(prefersReducedMotion() || !fx) return;
-      const ctx = fx.getContext("2d");
+      ensureFxReady();
+      const ctx = fxCtx;
+      if(!ctx) return;
       const colors = ["#31B67A", "#7FE3A5", "#FFE6A7", "#E7A86E", "#D9894A", "#FFFFFF"];
       const cx = window.innerWidth / 2;
       const cy = Math.min(window.innerHeight * 0.35, 260);
@@ -1394,7 +1437,12 @@
     applyRsvpState();
 
     // Init upgraded components
-    initCalendarLink();
+    // Non-critical: do in idle time
+    const idle = (cb) => {
+      if("requestIdleCallback" in window) return window.requestIdleCallback(cb, { timeout: 1500 });
+      return window.setTimeout(cb, 50);
+    };
+    idle(initCalendarLink);
     tickCountdown();
     window.setInterval(tickCountdown, 1000);
   </script>
