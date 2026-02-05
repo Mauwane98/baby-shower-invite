@@ -1134,6 +1134,17 @@
       return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     }
 
+    function prefersReducedData(){
+      return window.matchMedia && window.matchMedia("(prefers-reduced-data: reduce)").matches;
+    }
+
+    // Run non-critical work when the browser is idle.
+    // NOTE: defined early so later features (like the intro animation) can use it.
+    const idle = (cb) => {
+      if("requestIdleCallback" in window) return window.requestIdleCallback(cb, { timeout: 1500 });
+      return window.setTimeout(cb, 50);
+    };
+
     // Helps keep scrolling smooth on low-end devices by pausing expensive effects while scrolling
     (function initScrollPerfHints(){
       let t = 0;
@@ -1309,6 +1320,12 @@
       t0:0,
     };
 
+    // Balloon splash (soft intro): separate so RSVP confetti stays the same.
+    const balloonFx = {
+      running:false,
+      balloons:[],
+    };
+
     // Lazy init canvas work (helps initial load on mobile)
     let fxReady = false;
     let fxCtx = null;
@@ -1328,6 +1345,114 @@
       fxReady = true;
       window.addEventListener("resize", resizeFx, { passive:true });
       resizeFx();
+    }
+
+    function clearFx(){
+      if(!fxCtx) return;
+      fxCtx.clearRect(0,0,window.innerWidth,window.innerHeight);
+    }
+
+    function playBalloonSplash(){
+      // Very lightweight intro. Skip on reduced motion / reduced data.
+      if(!fx || prefersReducedMotion() || prefersReducedData()) return;
+
+      // Play once per session so refreshes/navigation feel snappy.
+      try{
+        if(sessionStorage.getItem("babyshower_balloon_intro_v1") === "1") return;
+        sessionStorage.setItem("babyshower_balloon_intro_v1", "1");
+      }catch(e){}
+
+      ensureFxReady();
+      const ctx = fxCtx;
+      if(!ctx) return;
+
+      // Don’t clash with confetti animation.
+      if(confetti.running) return;
+
+      const W = window.innerWidth;
+      const H = window.innerHeight;
+
+      const colors = [
+        "rgba(49,182,122,.32)",
+        "rgba(127,227,165,.30)",
+        "rgba(255,230,167,.34)",
+        "rgba(231,168,110,.30)",
+        "rgba(255,255,255,.30)",
+      ];
+
+      const n = Math.max(10, Math.min(18, Math.round(W / 70)));
+      balloonFx.balloons.length = 0;
+
+      for(let i=0;i<n;i++){
+        const r = 18 + Math.random()*18;
+        balloonFx.balloons.push({
+          x: (i+0.5) * (W / n) + (Math.random()*18-9),
+          y: H + 40 + Math.random()*80,
+          r,
+          vy: -(0.45 + Math.random()*0.55),
+          sway: 0.8 + Math.random()*1.4,
+          phase: Math.random()*Math.PI*2,
+          c: colors[(Math.random()*colors.length)|0],
+          a: 0.0,
+        });
+      }
+
+      const tStart = performance.now();
+      const duration = 1800; // ms
+      balloonFx.running = true;
+
+      function drawBalloon(b){
+        // Soft ellipse + subtle highlight + tiny string
+        ctx.save();
+        ctx.globalAlpha = b.a;
+        ctx.fillStyle = b.c;
+        ctx.beginPath();
+        ctx.ellipse(b.x, b.y, b.r*0.9, b.r*1.1, 0, 0, Math.PI*2);
+        ctx.fill();
+
+        // highlight
+        ctx.globalAlpha = b.a * 0.55;
+        ctx.fillStyle = "rgba(255,255,255,.45)";
+        ctx.beginPath();
+        ctx.ellipse(b.x - b.r*0.25, b.y - b.r*0.25, b.r*0.22, b.r*0.32, -0.6, 0, Math.PI*2);
+        ctx.fill();
+
+        // string
+        ctx.globalAlpha = b.a * 0.5;
+        ctx.strokeStyle = "rgba(17,17,17,.22)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(b.x, b.y + b.r*1.05);
+        ctx.quadraticCurveTo(b.x + 6, b.y + b.r*1.55, b.x + 2, b.y + b.r*2.1);
+        ctx.stroke();
+
+        ctx.restore();
+      }
+
+      requestAnimationFrame(function loop(t){
+        const p = Math.min(1, (t - tStart) / duration);
+
+        // Ease in/out alpha
+        const fadeIn = Math.min(1, p / 0.18);
+        const fadeOut = p < 0.75 ? 1 : Math.max(0, 1 - (p - 0.75) / 0.25);
+        const alpha = fadeIn * fadeOut;
+
+        ctx.clearRect(0,0,W,H);
+
+        for(const b of balloonFx.balloons){
+          b.y += b.vy * 5.3; // pixels per frame-ish
+          b.x += Math.sin((t/420) + b.phase) * b.sway;
+          b.a = alpha;
+          drawBalloon(b);
+        }
+
+        if(p < 1){
+          requestAnimationFrame(loop);
+        }else{
+          balloonFx.running = false;
+          clearFx();
+        }
+      });
     }
 
     function burstConfetti(){
@@ -1513,12 +1638,14 @@
     // Load state on open
     applyRsvpState();
 
+    // Soft balloon splash on initial open (in idle time, so it never blocks first paint)
+    idle(()=> {
+      // If canvas isn't available, just no-op.
+      try{ playBalloonSplash(); }catch(e){}
+    });
+
     // Init upgraded components
     // Non-critical: do in idle time
-    const idle = (cb) => {
-      if("requestIdleCallback" in window) return window.requestIdleCallback(cb, { timeout: 1500 });
-      return window.setTimeout(cb, 50);
-    };
     idle(initCalendarLink);
     tickCountdown();
 
