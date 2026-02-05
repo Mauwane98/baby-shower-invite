@@ -16,13 +16,17 @@
   <!-- Inline SVG favicon (prevents 404, matches palette) -->
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3CradialGradient id='g' cx='30%25' cy='30%25' r='80%25'%3E%3Cstop offset='0' stop-color='%23FFFDF9'/%3E%3Cstop offset='0.55' stop-color='%23F7F3EE'/%3E%3Cstop offset='1' stop-color='%23E2CFBC'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='18' fill='url(%23g)'/%3E%3Cpath d='M18 35c9-11 19-11 28 0' fill='none' stroke='%238FA08A' stroke-width='4' stroke-linecap='round'/%3E%3Ccircle cx='24' cy='27' r='3' fill='%23B58B6A'/%3E%3Ccircle cx='40' cy='27' r='3' fill='%23B58B6A'/%3E%3C/svg%3E" />
 
+  <!-- Hint DNS early (small but helps on slow networks) -->
+  <link rel="dns-prefetch" href="//fonts.googleapis.com" />
+  <link rel="dns-prefetch" href="//fonts.gstatic.com" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <!-- Load fonts without blocking first paint -->
-  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" media="print" onload="this.media='all'" />
+  <!-- NOTE: Reduced font weights to speed up loading (browser will synthesize intermediate weights like 850/950). -->
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" media="print" onload="this.media='all'" />
   <noscript>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" />
   </noscript>
 
   <style>
@@ -129,6 +133,10 @@
         radial-gradient(950px 600px at 50% 92%, rgba(127,227,165,.18), transparent 65%);
       animation: drift 14s var(--ease) infinite alternate;
       filter:saturate(1.02);
+
+      /* Keep effects on the compositor when possible (helps smooth scrolling) */
+      will-change: transform, opacity;
+      transform: translateZ(0);
     }
     @keyframes drift{
       from{ transform: translate3d(-10px,-10px,0) scale(1.02); }
@@ -143,6 +151,9 @@
       mix-blend-mode:multiply;
       background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E");
       animation: grainMove 10s linear infinite;
+
+      will-change: transform, opacity;
+      transform: translateZ(0);
     }
     @keyframes grainMove{
       0%{ transform: translate3d(0,0,0) rotate(0deg); }
@@ -304,7 +315,16 @@
       /* Improves initial render on longer pages in Chromium-based browsers */
       content-visibility: auto;
       contain-intrinsic-size: 420px;
+
+      /* Isolate offscreen sections to reduce layout/paint cost while scrolling */
+      contain: layout paint style;
     }
+
+    /* While the user is actively scrolling, pause expensive animations/effects */
+    body.is-scrolling .ambient,
+    body.is-scrolling .grain,
+    body.is-scrolling .orb{ animation-play-state: paused !important; }
+    body.is-scrolling .card{ backdrop-filter: none; }
 
     .sectionTitle{
       margin:0;
@@ -805,6 +825,12 @@
       .card{ backdrop-filter: none; }
     }
 
+    /* Data saver mode (where supported) */
+    @media (prefers-reduced-data: reduce){
+      .ambient, .grain, .orb{ display:none !important; }
+      .card{ backdrop-filter:none; }
+    }
+
     /* Confetti overlay */
     #fx{
       position:fixed;
@@ -1107,6 +1133,26 @@
     function prefersReducedMotion(){
       return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     }
+
+    // Helps keep scrolling smooth on low-end devices by pausing expensive effects while scrolling
+    (function initScrollPerfHints(){
+      let t = 0;
+      let ticking = false;
+      function setScrolling(){
+        document.body.classList.add("is-scrolling");
+        window.clearTimeout(t);
+        t = window.setTimeout(()=> document.body.classList.remove("is-scrolling"), 140);
+      }
+      window.addEventListener("scroll", ()=>{
+        // Throttle to one class-toggle per frame
+        if(ticking) return;
+        ticking = true;
+        requestAnimationFrame(()=>{
+          setScrolling();
+          ticking = false;
+        });
+      }, { passive:true });
+    })();
 
     function showToast(msg){
       toast.textContent = msg;
@@ -1475,7 +1521,18 @@
     };
     idle(initCalendarLink);
     tickCountdown();
-    window.setInterval(tickCountdown, 1000);
+
+    // Pause countdown work when tab is hidden (minor, but helps overall responsiveness)
+    let countdownTimer = window.setInterval(tickCountdown, 1000);
+    document.addEventListener("visibilitychange", ()=>{
+      if(document.hidden){
+        window.clearInterval(countdownTimer);
+        countdownTimer = 0;
+      }else if(!countdownTimer){
+        tickCountdown();
+        countdownTimer = window.setInterval(tickCountdown, 1000);
+      }
+    }, { passive:true });
   </script>
 </body>
 </html>
